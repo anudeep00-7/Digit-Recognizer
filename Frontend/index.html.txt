@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Handwritten Digit Recognizer</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f7f9fa; margin: 0; }
+        .container { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        canvas { border: 2px solid #333; background-color: white; cursor: crosshair; }
+        .controls { margin-top: 15px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; background-color: #007bff; color: white; }
+        button#clear { background-color: #dc3545; }
+        #result { margin-top: 20px; font-size: 24px; font-weight: bold; color: #333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Draw a Digit (0-9)</h2>
+        <canvas id="canvas" width="280" height="280"></canvas>
+        <div class="controls">
+            <button id="clear">Clear</button>
+            <button id="predict">Predict</button>
+        </div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+
+        ctx.lineWidth = 16;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'black';
+
+        canvas.addEventListener('mousedown', () => drawing = true);
+        canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
+        canvas.addEventListener('mousemove', draw);
+
+        function draw(event) {
+            if (!drawing) return;
+            const rect = canvas.getBoundingClientRect();
+            ctx.lineTo(event.clientX - rect.left, event.clientY - rect.top);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(event.clientX - rect.left, event.clientY - rect.top);
+        }
+
+        document.getElementById('clear').addEventListener('click', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('result').innerText = '';
+        });
+
+        document.getElementById('predict').addEventListener('click', () => {
+            canvas.toBlob((blob) => {
+                const formData = new FormData();
+                formData.append('file', blob, 'digit.png');
+
+                fetch('http://localhost:8000/predict', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('result').innerText = `Prediction: ${data.prediction}`;
+                })
+                .catch(err => console.error(err));
+            });
+        });
+    </script>
+</body>
+</html>

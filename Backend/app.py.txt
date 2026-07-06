@@ -1,0 +1,47 @@
+import io
+import numpy as np
+import torch
+import torch.nn.functional as F
+from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
+from train import Net
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+model = Net()
+try:
+    model.load_state_dict(torch.load("mnist_cnn.pt", map_location=torch.device('cpu'), weights_only=True))
+except Exception:
+    pass
+model.eval()
+
+def preprocess_image(image_bytes):
+    img = Image.open(io.BytesIO(image_bytes)).convert('L')
+    img = img.resize((28, 28), Image.Resampling.LANCZOS)
+    img_array = np.array(img)
+    img_array = 255.0 - img_array
+    img_array = img_array / 255.0
+    return torch.FloatTensor(img_array).unsqueeze(0).unsqueeze(0)
+
+@app.post("/predict")
+async def predict(file: UploadFile = File(...)):
+    contents = await file.read()
+    tensor = preprocess_image(contents)
+    with torch.no_grad():
+        output = model(tensor)
+        prediction = output.argmax(dim=1, keepdim=True).item()
+        probabilities = torch.exp(output).squeeze().tolist()
+    return {"prediction": prediction, "probabilities": probabilities}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
